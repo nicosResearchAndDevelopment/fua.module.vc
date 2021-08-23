@@ -6,6 +6,10 @@
   "files": [
     "src/*"
   ],
+  "dependencies": {
+    "@nrd/fua.core.util": "1.0.0",
+    "jose": "^3.14.4"
+  },
   "devDependencies": {
     "mocha": "^8.2.1",
     "expect": "^26.6.2"
