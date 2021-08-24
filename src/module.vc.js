@@ -1,130 +1,128 @@
 const
-    // SEE https://github.com/panva/jose/blob/main/docs/classes/jwt_sign.SignJWT.md#readme
-    {SignJWT}               = require('jose/jwt/sign'),
-    // SEE https://github.com/panva/jose/blob/main/docs/functions/jwt_verify.jwtVerify.md#readme
-    {jwtVerify}             = require('jose/jwt/verify'),
-    // SEE https://github.com/panva/jose/blob/main/docs/functions/util_decode_protected_header.decodeProtectedHeader.md#readme
-    {decodeProtectedHeader} = require('jose/util/decode_protected_header'),
-    // SEE https://github.com/panva/jose/blob/main/docs/functions/jwk_parse.parseJwk.md#readme
-    {parseJwk}              = require('jose/jwk/parse'),
-    util                    = require('./module.vc.util.js');
-
-// TODO maybe change the usage of jwk instead of key-likes or offer both
-// TODO evaluate, maybe change and confirm the current api draft
-// TODO implement more elaborate functions
-// -> maybe to differentiate between vc and vp by their type
-// -> maybe to validate vc and vp structure better
-// -> maybe to use a custom vc and vp class
-// TODO improve key selection for validation
-// TODO maybe implement and use a key-store class
-// TODO write tests with consistent/persistent key-store
+    util                    = require('./module.vc.util.js'),
+    helper                  = require('./module.vc.helper.js');
 
 /**
- * @param {VerifiableCredential} vc
- * @param {object} options
+ * @param {VerifiableCredential} vc The VC to sign as a JWT.
+ * @param {object} options Either key, including alg and kid, or jwk, which could contain alg and kid, must be present.
  * @param {string} [options.alg]
- * @param {JsonWebKey} options.key
+ * @param {string} [options.kid]
+ * @param {KeyLike} [options.key]
+ * @param {JsonWebKey} [options.jwk]
  * @returns {Promise<JsonWebToken>}
  */
-exports.VC2JWT = async function (vc, options) {
-    util.assert(util.isObject(vc), 'VC2JWT : expected vc to be an object', TypeError);
-    util.assert(util.isObject(options), 'VC2JWT : expected options to be an object', TypeError);
-    util.assert(util.isObject(options.key), 'VC2JWT : expected options.key to be an object', TypeError);
+exports.sign_vc_as_jwt = async function (vc, options) {
+    util.assert(util.isObject(vc), 'sign_vc_as_jwt : expected vc to be an object', TypeError);
+    util.assert(util.isObject(options), 'sign_vc_as_jwt : expected options to be an object', TypeError);
     const
-        key     = await parseJwk(options.key),
-        header  = {
-            typ: 'JWT',
-            alg: options.alg || options.key.alg || undefined,
-            kid: options.key.kid || undefined
-        },
-        payload = {
-            vc: JSON.parse(JSON.stringify(vc))
-        };
-    if (payload.vc.proof) delete payload.vc.proof;
-    util.transferProperty(payload.vc, 'id', payload, 'jti');
-    util.transferProperty(payload.vc, 'issuer', payload, 'iss');
-    util.transferProperty(payload.vc.credentialSubject, 'id', payload, 'sub');
-    util.transferProperty(payload.vc, 'issuanceDate', payload, 'nbf', util.dateTimeToUnixTime);
-    util.transferProperty(payload.vc, 'expirationDate', payload, 'exp', util.dateTimeToUnixTime);
-    const jwt = await new SignJWT(payload)
-        .setProtectedHeader(header)
-        .sign(key);
+        key     = await helper.get_key(options),
+        header  = helper.get_header(options),
+        payload = helper.vc_to_claims(vc),
+        jwt     = await helper.jwt_from_claims(payload, header, key);
     return jwt;
-}; // VC2JWT
+}; // sign_vc_as_jwt
 
 /**
- * @param {JsonWebToken} jwt
- * @param {object} options
- * @param {Array<JsonWebKey>} options.keys
+ * @param {JsonWebToken} jwt The JWT containing a signed VC.
+ * @param {object} options Either key, getKey, jwk or jwks must be present.
+ * @param {KeyLike} [options.key]
+ * @param {JWTVerifyGetKey} [options.getKey]
+ * @param {JsonWebKey} [options.jwk]
+ * @param {Array<JsonWebKey>} [options.jwks]
  * @returns {Promise<VerifiableCredential>}
  */
-exports.JWT2VC = async function (jwt, options) {
-    util.assert(util.isString(jwt), 'JWT2VC : expected jwt to be a string', TypeError);
-    util.assert(util.isObject(options), 'VC2JWT : expected options to be an object', TypeError);
-    util.assert(util.isObjectArray(options.keys) && options.keys.length > 0, 'VC2JWT : expected options.keys to be a non-empty object array', TypeError);
+exports.verify_vc_from_jwt = async function (jwt, options) {
+    util.assert(util.isString(jwt), 'verify_vc_from_jwt : expected jwt to be a string', TypeError);
+    util.assert(util.isObject(options), 'verify_vc_from_jwt : expected options to be an object', TypeError);
     const
-        header    = await decodeProtectedHeader(jwt),
-        key       = await parseJwk(options.keys.find(key => key.kid === header.kid)),
-        // TODO key selection and validation
-        {payload} = await jwtVerify(jwt, key);
-    util.transferProperty(payload, 'jti', payload.vc, 'id');
-    util.transferProperty(payload, 'iss', payload.vc, 'issuer');
-    util.transferProperty(payload, 'sub', payload.vc.credentialSubject, 'id');
-    util.transferProperty(payload, 'nbf', payload.vc, 'issuanceDate', util.unixTimeToDateTime);
-    util.transferProperty(payload, 'exp', payload.vc, 'expirationDate', util.unixTimeToDateTime);
-    return payload.vc;
-}; // JWT2VC
+        getKey  = helper.get_getKey(options),
+        payload = await helper.jwt_to_claims(jwt, getKey),
+        vc      = helper.vc_from_claims(payload);
+    return vc;
+}; // verify_vc_from_jwt
 
 /**
- * @param {VerifiablePresentation} vp
- * @param {object} options
+ * @param {VerifiablePresentation} vp The VP to sign as a JWT.
+ * @param {object} options Either key, including alg and kid, or jwk, which could contain alg and kid, must be present.
  * @param {string} [options.alg]
- * @param {JsonWebKey} options.key
+ * @param {string} [options.kid]
+ * @param {KeyLike} [options.key]
+ * @param {JsonWebKey} [options.jwk]
  * @returns {Promise<JsonWebToken>}
  */
-exports.VP2JWT = async function (vp, options) {
-    util.assert(util.isObject(vp), 'VP2JWT : expected vp to be an object', TypeError);
-    util.assert(util.isObject(options), 'VP2JWT : expected options to be an object', TypeError);
-    util.assert(util.isObject(options.key), 'VP2JWT : expected options.key to be an object', TypeError);
+exports.sign_vp_as_jwt = async function (vp, options) {
+    util.assert(util.isObject(vp), 'sign_vp_as_jwt : expected vp to be an object', TypeError);
+    util.assert(util.isObject(options), 'sign_vp_as_jwt : expected options to be an object', TypeError);
     const
-        key     = await parseJwk(options.key),
-        header  = {
-            typ: 'JWT',
-            alg: options.alg || options.key.alg || undefined,
-            kid: options.key.kid || undefined
-        },
-        payload = {
-            vp: JSON.parse(JSON.stringify(vp))
-        };
-    if (payload.vp.proof) delete payload.vp.proof;
-    util.transferProperty(payload.vp, 'id', payload, 'jti');
-    util.transferProperty(payload.vp, 'holder', payload, 'iss');
-    // util.transferProperty(payload.vp, 'issuanceDate', payload, 'nbf', util.dateTimeToUnixTime);
-    // util.transferProperty(payload.vp, 'expirationDate', payload, 'exp', util.dateTimeToUnixTime);
-    const jwt = await new SignJWT(payload)
-        .setProtectedHeader(header)
-        .sign(key);
+        key     = await helper.get_key(options),
+        header  = helper.get_header(options),
+        payload = helper.vp_to_claims(vp),
+        jwt     = await helper.jwt_from_claims(payload, header, key);
     return jwt;
-}; // VP2JWT
+}; // sign_vp_as_jwt
 
 /**
- * @param {JsonWebToken} jwt
- * @param {object} options
- * @param {Array<JsonWebKey>} options.keys
+ * @param {JsonWebToken} jwt The JWT containing a signed VP.
+ * @param {object} options Either key, getKey, jwk or jwks must be present.
+ * @param {KeyLike} [options.key]
+ * @param {JWTVerifyGetKey} [options.getKey]
+ * @param {JsonWebKey} [options.jwk]
+ * @param {Array<JsonWebKey>} [options.jwks]
  * @returns {Promise<VerifiablePresentation>}
  */
-exports.JWT2VP = async function (jwt, options) {
-    util.assert(util.isString(jwt), 'JWT2VP : expected jwt to be a string', TypeError);
-    util.assert(util.isObject(options), 'JWT2VP : expected options to be an object', TypeError);
-    util.assert(util.isObjectArray(options.keys) && options.keys.length > 0, 'JWT2VP : expected options.keys to be a non-empty object array', TypeError);
+exports.verify_vp_from_jwt = async function (jwt, options) {
+    util.assert(util.isString(jwt), 'verify_vp_from_jwt : expected jwt to be a string', TypeError);
+    util.assert(util.isObject(options), 'verify_vp_from_jwt : expected options to be an object', TypeError);
     const
-        header    = await decodeProtectedHeader(jwt),
-        key       = await parseJwk(options.keys.find(key => key.kid === header.kid)),
-        // TODO key selection and validation
-        {payload} = await jwtVerify(jwt, key);
-    util.transferProperty(payload, 'jti', payload.vp, 'id');
-    util.transferProperty(payload, 'iss', payload.vp, 'holder');
-    // util.transferProperty(payload, 'nbf', payload.vp, 'issuanceDate', util.unixTimeToDateTime);
-    // util.transferProperty(payload, 'exp', payload.vp, 'expirationDate', util.unixTimeToDateTime);
-    return payload.vp;
-}; // JWT2VP
+        getKey  = helper.get_getKey(options),
+        payload = await helper.jwt_to_claims(jwt, getKey),
+        vp      = helper.vp_from_claims(payload);
+    return vp;
+}; // verify_vp_from_jwt
+
+/**
+ * @param {VerifiableCredential|VerifiablePresentation} vc_or_vp The VC or VP to sign as a JWT.
+ * @param {object} options Either key, including alg and kid, or jwk, which could contain alg and kid, must be present.
+ * @param {string} [options.alg]
+ * @param {string} [options.kid]
+ * @param {KeyLike} [options.key]
+ * @param {JsonWebKey} [options.jwk]
+ * @returns {Promise<JsonWebToken>}
+ */
+exports.sign_as_jwt = async function (vc_or_vp, options) {
+    util.assert(util.isObject(vc_or_vp), 'sign_as_jwt : expected vc_or_vp to be an object', TypeError);
+    util.assert(util.isObject(options), 'sign_as_jwt : expected options to be an object', TypeError);
+    const
+        key       = await helper.get_key(options),
+        header    = helper.get_header(options),
+        to_claims = {
+            'VerifiableCredential':   helper.vc_to_claims,
+            'VerifiablePresentation': helper.vp_to_claims
+        }[helper.get_verifiable_type(vc_or_vp)],
+        payload   = to_claims(vc_or_vp),
+        jwt       = await helper.jwt_from_claims(payload, header, key);
+    return jwt;
+}; // sign_as_jwt
+
+/**
+ * @param {JsonWebToken} jwt The JWT containing a signed VP.
+ * @param {object} options Either key, getKey, jwk or jwks must be present.
+ * @param {KeyLike} [options.key]
+ * @param {JWTVerifyGetKey} [options.getKey]
+ * @param {JsonWebKey} [options.jwk]
+ * @param {Array<JsonWebKey>} [options.jwks]
+ * @returns {Promise<VerifiableCredential|VerifiablePresentation>}
+ */
+exports.verify_from_jwt = async function (jwt, options) {
+    util.assert(util.isString(jwt), 'verify_from_jwt : expected jwt to be a string', TypeError);
+    util.assert(util.isObject(options), 'verify_from_jwt : expected options to be an object', TypeError);
+    const
+        getKey      = helper.get_getKey(options),
+        payload     = await helper.jwt_to_claims(jwt, getKey),
+        from_claims = {
+            'VerifiableCredential':   helper.vc_from_claims,
+            'VerifiablePresentation': helper.vp_from_claims
+        }[helper.get_claims_type(payload)],
+        vc_or_vp    = from_claims(payload);
+    return vc_or_vp;
+}; // verify_from_jwt
