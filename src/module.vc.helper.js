@@ -162,10 +162,11 @@ exports.jwt_from_claims = async function (claims, header, key) {
     return jwt;
 }; // jwt_from_claims
 
-exports.get_header = function ({alg, kid}) {
+exports.get_header = function ({alg, kid, jwk}) {
     return {
         typ: 'JWT',
-        alg, kid
+        alg: alg ?? jwk?.alg,
+        kid: kid ?? jwk?.kid
     };
 }; // get_header
 
