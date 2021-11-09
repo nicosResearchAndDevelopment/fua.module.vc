@@ -1,14 +1,15 @@
 const
-    {describe, test, before}            = require('mocha'),
-    expect                              = require('expect'),
-    module_vc                           = require('../src/module.vc.js'),
-    {generateKeyPair}                   = require('jose/util/generate_key_pair'),
-    {fromKeyLike}                       = require('jose/jwk/from_key_like'),
-    {createPrivateKey, createPublicKey} = require('crypto'),
-    {decodeProtectedHeader}             = require('jose/util/decode_protected_header'),
-    testVC                              = Object.freeze(require('./data/example-verifiable-credential.json')),
-    testVP                              = Object.freeze(require('./data/example-verifiable-presentation.json')),
-    testCerts                           = require('./data/certs');
+    {describe, test, before}                                      = require('mocha'),
+    expect                                                        = require('expect'),
+    module_vc                                                     = require('../src/module.vc.js'),
+    // {generateKeyPair}                                                = require('jose/util/generate_key_pair'), // jose@3.x
+    // {fromKeyLike}                                                 = require('jose/jwk/from_key_like'), // jose@3.x
+    {createPrivateKey, createPublicKey}                           = require('crypto'),
+    // {decodeProtectedHeader}                                          = require('jose/util/decode_protected_header'), // jose@3.x
+    {generateKeyPair, decodeProtectedHeader, exportJWK: fromKeyLike} = require('jose'), // jose@4.x
+    testVC                                                        = Object.freeze(require('./data/example-verifiable-credential.json')),
+    testVP                                                        = Object.freeze(require('./data/example-verifiable-presentation.json')),
+    testCerts                                                     = require('./data/certs');
 
 describe('module.vc', function () {
 

@@ -1,13 +1,14 @@
 const
     util                    = require('./module.vc.util.js'),
-    // SEE https://github.com/panva/jose/blob/main/docs/classes/jwt_sign.SignJWT.md#readme
-    {SignJWT}               = require('jose/jwt/sign'),
-    // SEE https://github.com/panva/jose/blob/main/docs/functions/jwt_verify.jwtVerify.md#readme
-    {jwtVerify}             = require('jose/jwt/verify'),
-    // SEE https://github.com/panva/jose/blob/main/docs/functions/util_decode_protected_header.decodeProtectedHeader.md#readme
-    {decodeProtectedHeader} = require('jose/util/decode_protected_header'),
-    // SEE https://github.com/panva/jose/blob/main/docs/functions/jwk_parse.parseJwk.md#readme
-    {parseJwk}              = require('jose/jwk/parse');
+    // // SEE https://github.com/panva/jose/blob/main/docs/classes/jwt_sign.SignJWT.md#readme
+    // {SignJWT}               = require('jose/jwt/sign'), // jose@3.x
+    // // SEE https://github.com/panva/jose/blob/main/docs/functions/jwt_verify.jwtVerify.md#readme
+    // {jwtVerify}             = require('jose/jwt/verify'), // jose@3.x
+    // // SEE https://github.com/panva/jose/blob/main/docs/functions/util_decode_protected_header.decodeProtectedHeader.md#readme
+    // {decodeProtectedHeader} = require('jose/util/decode_protected_header'), // jose@3.x
+    // // SEE https://github.com/panva/jose/blob/main/docs/functions/jwk_parse.parseJwk.md#readme
+    // {parseJwk}              = require('jose/jwk/parse'), // jose@3.x
+    {SignJWT, jwtVerify, decodeProtectedHeader, importJWK: parseJwk} = require('jose'); // jose@4.x
 
 //region >> TYPEDEF
 
