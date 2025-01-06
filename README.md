@@ -1,4 +1,4 @@
-# module.vc
+# @fua/module.vc
 
 ```ts
 interface module_vc {
